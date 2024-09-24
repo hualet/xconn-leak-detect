@@ -1,90 +1,31 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include <unistd.h>
-#include <sys/types.h>
 #include <dlfcn.h>
 #include <X11/Xlib.h>
 
-#define MAX_PROCESS_INFO 256
 
 typedef Display *(*XOpenDisplay_t)(const char *);
 typedef int (*XCloseDisplay_t)(Display *display);
 
-// 定义一个动态array数据结构
-typedef struct {
-    pid_t pid;
-    int xOpenDisplayCount;
-    int xCloseDisplayCount;
-} process_info;
 
-process_info *process_infos = NULL;
+static unsigned int xOpenDisplayCount = 0;
+static unsigned int xCloseDisplayCount = 0;
 
 void add_xopendisplay_count(pid_t pid) {
-    if (process_infos == NULL) {
-        process_infos = calloc(MAX_PROCESS_INFO, sizeof(process_info));
-    }
-
-    int index = 0;
-    bool found = false;
-    for (; index < sizeof(process_infos); index++) {
-        if (!process_infos[index].pid) {
-            break;
-        }
-        if (process_infos[index].pid == pid) {
-            process_infos[index].xOpenDisplayCount++;
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        process_info info = (process_info){
-            .pid = pid,
-            .xOpenDisplayCount = 1,
-            .xCloseDisplayCount = 0
-        };
-        process_infos[index] = info;
-    }
+    xOpenDisplayCount++;
 }
 
 void add_xclosedisplay_count(pid_t pid) {
-    if (process_infos == NULL) {
-        process_infos = calloc(MAX_PROCESS_INFO, sizeof(process_info));
-    }
-
-    int index = 0;
-    bool found = false;
-    for (; index < sizeof(process_infos); index++) {
-        if (!process_infos[index].pid) {
-            break;
-        }
-        if (process_infos[index].pid == pid) {
-            process_infos[index].xCloseDisplayCount++;
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        process_info info = (process_info){
-            .pid = pid,
-            .xOpenDisplayCount = 0,
-            .xCloseDisplayCount = 1
-        };
-        process_infos[index] = info;
-    }
+    xCloseDisplayCount++;
 }
 
-void print_process_info() {
-    if (process_infos != NULL) {
-        for (int i = 0; i < sizeof(process_infos); i++) {
-            printf("Process %d: xOpenDisplayCount=%d, xCloseDisplayCount=%d\n",
-                    process_infos[i].pid,
-                    process_infos[i].xOpenDisplayCount,
-                    process_infos[i].xCloseDisplayCount);
-        }
-    }
+void print_process_info(void) {
+    printf("Process %d: xOpenDisplayCount=%d, xCloseDisplayCount=%d\n",
+            getpid(),
+            xOpenDisplayCount,
+            xCloseDisplayCount);
 }
 
 Display *XOpenDisplay(const char *name) {
@@ -92,7 +33,6 @@ Display *XOpenDisplay(const char *name) {
 
     printf("XOpenDisplay called with name %s\n", name);
     add_xopendisplay_count(getpid());
-    print_process_info();
 
     return XOpenDisplay_func(name);
 }
@@ -104,4 +44,9 @@ int XCloseDisplay(Display *display) {
     add_xclosedisplay_count(getpid());
 
     return XCloseDisplay_func(display);
+}
+
+__attribute__((constructor))
+void on_load(void) {
+    atexit(print_process_info);
 }
