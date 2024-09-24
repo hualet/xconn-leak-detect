@@ -1,52 +1,137 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
-
-#include <unistd.h>
+#include <string.h>
 #include <dlfcn.h>
+#include <execinfo.h>
 #include <X11/Xlib.h>
+
+#include "entry_map.h"
 
 
 typedef Display *(*XOpenDisplay_t)(const char *);
 typedef int (*XCloseDisplay_t)(Display *display);
 
+void print_call_stack(void) {
+    void *buffer[1024];
+    int nptrs = backtrace(buffer, 1024);
+    char **strings = backtrace_symbols(buffer, nptrs);
+    if (strings == NULL) {
+        perror("backtrace_symbols");
+        exit(EXIT_FAILURE);
+    }
 
-static unsigned int xOpenDisplayCount = 0;
-static unsigned int xCloseDisplayCount = 0;
+    // call stack example:
+    // ./libxconn_leak_detect.so(print_call_stack+0x1f) [0x7fe89a73f21a]
+    // ./libxconn_leak_detect.so(XOpenDisplay+0x46) [0x7fe89a73f327]
+    // glxgears(+0x30f2) [0x55858f3bd0f2]
+    // /lib/x86_64-linux-gnu/libc.so.6(+0x27b8a) [0x7fe89a2bcb8a]
+    // /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x85) [0x7fe89a2bcc45]
+    // glxgears(+0x3161) [0x55858f3bd161]
 
-void add_xopendisplay_count(pid_t pid) {
-    xOpenDisplayCount++;
+    Dl_info info;
+    for (int i = 0; i < nptrs; i++) {
+        if (dladdr(buffer[i], &info)) {
+            printf("Call stack --  %p:\n", buffer[i]);
+            printf("File: %s\n", info.dli_fname);
+            printf("Base address: %p\n", info.dli_fbase);
+            printf("Nearest symbol: %s\n", info.dli_sname);
+            printf("Symbol address: %p\n", info.dli_saddr);
+        }
+    }
+
+
+    printf("Call stack:\n");
+    for (int i = 0; i < nptrs; i++) {
+        printf("%s\n", strings[i]);
+    }
+
+    free(strings);
 }
 
-void add_xclosedisplay_count(pid_t pid) {
-    xCloseDisplayCount++;
+void *get_call_address(void) {
+    void *buffer[1024];
+    int nptrs = backtrace(buffer, 1024);
+    // call stack example:
+    //
+    // ./libxconn_leak_detect.so(print_call_stack+0x1f) [0x7fe89a73f21a]
+    // ./libxconn_leak_detect.so(XOpenDisplay+0x46) [0x7fe89a73f327]
+    // glxgears(+0x30f2) [0x55858f3bd0f2]
+    // /lib/x86_64-linux-gnu/libc.so.6(+0x27b8a) [0x7fe89a2bcb8a]
+    // /lib/x86_64-linux-gnu/libc.so.6(__libc_start_main+0x85) [0x7fe89a2bcc45]
+    // glxgears(+0x3161) [0x55858f3bd161]
+    //
+    // so we want to return buffer[2]
+
+    if (nptrs < 3) {
+        return NULL;
+    }
+
+    return buffer[2];
 }
 
-void print_process_info(void) {
-    printf("Process %d: xOpenDisplayCount=%d, xCloseDisplayCount=%d\n",
-            getpid(),
-            xOpenDisplayCount,
-            xCloseDisplayCount);
+void get_addr2line(void *addr, char *output) {
+    Dl_info info;
+    dladdr(addr, &info);
+    if (info.dli_sname) {
+        strcpy(output, info.dli_sname);
+    } else {
+        strcpy(output, "Unknown");
+    }
+}
+
+void print_map() {
+    entry_map *current = get_global_map();
+    if (current == NULL) {
+        printf("no leaks detected.\n");
+        return;
+    } else {
+        printf("leaks detected:\n");
+    }
+    while (current) {
+        char addr2line_output[1024];
+        get_addr2line(current->memory_address, addr2line_output);
+        printf("  call locations: %p(%s)\n", current->memory_address, addr2line_output);
+        display_node *current_display = current->displays;
+        printf("  open displays:\n");
+        while (current_display) {
+            printf("    - display: %p\n", current_display->display);
+            current_display = current_display->next;
+        }
+        current = current->next;
+    }
+}
+
+void print_leak_info(void) {
+    print_map();
 }
 
 Display *XOpenDisplay(const char *name) {
     XOpenDisplay_t XOpenDisplay_func = (XOpenDisplay_t)dlsym(RTLD_NEXT, "XOpenDisplay");
 
-    printf("XOpenDisplay called with name %s\n", name);
-    add_xopendisplay_count(getpid());
+    Display *display_ret = XOpenDisplay_func(name);
 
-    return XOpenDisplay_func(name);
+    printf("XOpenDisplay called with name %s, return Display %p\n", name, display_ret);
+
+    void *call_address = get_call_address();
+    if (call_address) {
+        add_display_to_memory_address(call_address, display_ret);
+    }
+
+    return display_ret;
 }
 
 int XCloseDisplay(Display *display) {
     XCloseDisplay_t XCloseDisplay_func = (XCloseDisplay_t)dlsym(RTLD_NEXT, "XCloseDisplay");
 
     printf("XCloseDisplay called with display %p\n", display);
-    add_xclosedisplay_count(getpid());
+    remove_display_from_memory_address(display);
 
     return XCloseDisplay_func(display);
 }
 
 __attribute__((constructor))
 void on_load(void) {
-    atexit(print_process_info);
+    atexit(print_leak_info);
 }
