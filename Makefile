@@ -10,7 +10,7 @@ SOURCES = $(wildcard *.c)
 
 # 生成可执行文件
 $(TARGET): $(SOURCES)
-	$(CC) $(CFLAGS) $^ -shared -fPIC -o $@
+	$(CC) $(CFLAGS) $^ -shared -fPIC -g -o $@
 
 # 清理编译产物
 clean:
