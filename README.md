@@ -17,6 +17,7 @@ TODO:
 
 - [x] count per frame 
 - [ ] add logging
+- [ ] capture necessary signals
 - [ ] work with X11 sessions
 
 ## License
