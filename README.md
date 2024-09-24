@@ -15,7 +15,7 @@ LD_PRELOAD=./xconn-leak-detect.so your_application
 
 TODO:
 
-- [ ] count per frame 
+- [x] count per frame 
 - [ ] work with X11 sessions
 
 ## License
