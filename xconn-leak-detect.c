@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <dlfcn.h>
+#include <signal.h>
 #include <execinfo.h>
 #include <X11/Xlib.h>
 
@@ -94,9 +95,9 @@ void print_map() {
         get_addr2line(current->memory_address, addr2line_output);
         printf("  call locations: %p(%s)\n", current->memory_address, addr2line_output);
         display_node *current_display = current->displays;
-        printf("  open displays:\n");
+        printf("    open displays:\n");
         while (current_display) {
-            printf("    - display: %p\n", current_display->display);
+            printf("      - display: %p\n", current_display->display);
             current_display = current_display->next;
         }
         current = current->next;
@@ -131,7 +132,25 @@ int XCloseDisplay(Display *display) {
     return XCloseDisplay_func(display);
 }
 
+void handle_signal(int sig) {
+    printf("Received signal %d, printing leak info.\n", sig);
+    print_leak_info();
+    // Reset the signal handler to default and re-raise the signal
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+void setup_signal_handlers(void) {
+    struct sigaction sa;
+    sa.sa_handler = handle_signal;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+
+    sigaction(SIGINT, &sa, NULL);
+}
+
 __attribute__((constructor))
 void on_load(void) {
     atexit(print_leak_info);
+    setup_signal_handlers();
 }
