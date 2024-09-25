@@ -21,6 +21,7 @@ TODO:
 - [ ] work with X11 sessions
 - [x] call location is not really readable, add calltrace
 - [ ] optimize memory usage
+- [ ] hook xcb instead of x11
 
 
 ## License
