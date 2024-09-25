@@ -83,7 +83,7 @@ void get_addr2line(void *addr, char *output) {
 }
 
 void print_map() {
-    entry_map *current = get_global_map();
+    mem_dis_map *current = get_global_map();
     if (current == NULL) {
         printf("no leaks detected.\n");
         return;
@@ -94,10 +94,10 @@ void print_map() {
         char addr2line_output[1024];
         get_addr2line(current->memory_address, addr2line_output);
         printf("  call locations: %p(%s)\n", current->memory_address, addr2line_output);
-        display_node *current_display = current->displays;
+        display_node *current_display = current->display_refs;
         printf("    open displays:\n");
         while (current_display) {
-            printf("      - display: %p\n", current_display->display);
+            printf("      - display: %p\n", current_display->display_ref);
             current_display = current_display->next;
         }
         current = current->next;

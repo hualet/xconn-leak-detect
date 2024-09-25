@@ -16,20 +16,21 @@
 
 
 typedef struct display_node {
-    Display *display;
+    Display *display_ref;
+    void *call_trace;
     struct display_node *next;
 } display_node;
 
-typedef struct entry_map {
+typedef struct mem_dis_map {
     void *memory_address;
-    display_node *displays;
-    struct entry_map *next;
-} entry_map;
+    display_node *display_refs;
+    struct mem_dis_map *next;
+} mem_dis_map;
 
-entry_map* get_global_map();
+mem_dis_map* get_global_map();
 
-void add_display_to_memory_address(void *memory_address, Display *display);
+void add_display_to_memory_address(void *memory_address, Display *display_ref);
 
-void remove_display_from_memory_address(Display *display);
+void remove_display_from_memory_address(Display *display_ref);
 
 #endif
