@@ -13,11 +13,11 @@
 #include <stdio.h>
 
 #include <X11/Xlib.h>
-
+#include <xcb/xcb.h>
 
 typedef struct display_node {
-    Display *display_ref;
-    void *call_trace;
+    xcb_connection_t *conn_ref;
+    char **call_trace;
     int call_trace_size;
     struct display_node *next;
 } display_node;
@@ -30,8 +30,8 @@ typedef struct mem_dis_map {
 
 mem_dis_map* get_global_map();
 
-void add_display_to_memory_address(void *memory_address, Display *display_ref, void *call_trace, int call_trace_size);
+void add_display_to_memory_address(void *memory_address, xcb_connection_t *conn_ref, char **call_trace, int call_trace_size);
 
-void remove_display_from_memory_address(Display *display_ref);
+void remove_display_from_memory_address(xcb_connection_t *conn_ref);
 
 #endif
