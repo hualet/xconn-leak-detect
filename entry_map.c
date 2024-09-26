@@ -18,11 +18,10 @@ void add_display_to_memory_address(void *memory_address, xcb_connection_t *conn_
         map->next = NULL;
     } else {
         mem_dis_map *current = map;
-        mem_dis_map *previous = NULL;
-        while (current) {
+        while (current->next) {
             if (current->memory_address == memory_address) {
                 display_node *current_display = current->display_refs;
-                while (current_display) {
+                while (current_display->next) {
                     if (current_display->conn_ref == conn_ref) {
                         return;
                     }
@@ -35,17 +34,16 @@ void add_display_to_memory_address(void *memory_address, xcb_connection_t *conn_
                 current_display->next->next = NULL;
                 return;
             }
-            previous = current;
             current = current->next;
         }
-        previous->next = (mem_dis_map*)malloc(sizeof(mem_dis_map));
-        previous->next->memory_address = memory_address;
-        previous->next->display_refs = (display_node*)malloc(sizeof(display_node));
-        previous->next->display_refs->conn_ref = conn_ref;
-        previous->next->display_refs->call_trace = call_trace;
-        previous->next->display_refs->call_trace_size = call_trace_size;
-        previous->next->display_refs->next = NULL;
-        previous->next->next = NULL;
+        current->next = (mem_dis_map*)malloc(sizeof(mem_dis_map));
+        current->next->memory_address = memory_address;
+        current->next->display_refs = (display_node*)malloc(sizeof(display_node));
+        current->next->display_refs->conn_ref = conn_ref;
+        current->next->display_refs->call_trace = call_trace;
+        current->next->display_refs->call_trace_size = call_trace_size;
+        current->next->display_refs->next = NULL;
+        current->next->next = NULL;
     }
 }
 
